@@ -1,0 +1,6 @@
+- name: Ping EC2 Instance
+  hosts: ec2
+  gather_facts: false
+  tasks:
+    - name: Ping the EC2 instance
+      ping:

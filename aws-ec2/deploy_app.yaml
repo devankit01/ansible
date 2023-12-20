@@ -1,0 +1,48 @@
+- name: Deploy Application on EC2
+  hosts: ankit_ec2
+  become: true
+
+  vars_files:
+    - vars/vault.yaml
+
+  vars:
+    github_repo_url: https://{{ github_username }}:{{ github_app_password }}@github.com/devankit01/pylearn.git
+    app_directory: /home/ubuntu/pylearn
+    git_branch: master
+
+  tasks:
+    - name: Take Backup of App Directory
+      shell: |
+        backup_dir="{{ app_directory }}_backup_$(date +%Y_%m_%d)"
+        mkdir -p "$backup_dir"
+        cp -a "{{ app_directory }}/" "$backup_dir"
+      ignore_errors: true
+      register: backup_result
+
+    - name: Clone GitHub Repository
+      git:
+        repo: "{{ github_repo_url }}"
+        dest: "{{ app_directory }}"
+        version: "{{ git_branch }}"
+        update: yes
+      register: git_result
+
+    - name: Create environment file from template
+      template:
+        src: env_template/env_template.j2
+        dest: "{{ app_directory }}/.env"
+      vars:
+        var1: "user"
+        var2: "password"
+
+    - name: Run Docker Compose
+      command: docker-compose up --build -d
+      args:
+        chdir: "{{ app_directory }}"
+      when: git_result.changed and backup_result is succeeded
+
+  handlers:
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
